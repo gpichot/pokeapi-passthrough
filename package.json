@@ -34,9 +34,8 @@
     "zod-express-middleware": "^1.4.0"
   },
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "start": "ts-node --transpile-only src/index.ts",
     "dev": "nodemon --watch src --exec ts-node src/index.ts",
-    "build": "tsc",
     "test": "jest",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "lint": "eslint ."

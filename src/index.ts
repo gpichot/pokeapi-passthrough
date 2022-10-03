@@ -1,16 +1,15 @@
-import { PrismaClient } from "@prisma/client";
 import express from "express";
 
-const prisma = new PrismaClient();
+import pokemonsRouter from "./routers/pokemons";
+
 const app = express();
 
-app.get("/feed", async (req, res) => {
-  const posts = await prisma.post.findMany({
-    where: { published: true },
-    include: { author: true },
-  });
-  res.json(posts);
+app.use(express.json());
+
+app.get("/ping", (req, res) => {
+  res.send("pong");
 });
+app.use("/:namespace/pokemons", pokemonsRouter);
 
 app.listen(3000);
 

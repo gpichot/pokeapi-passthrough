@@ -1,5 +1,4 @@
 import { Pokemon, Prisma, PrismaClient } from "@prisma/client";
-import { error } from "console";
 import express from "express";
 import PokeAPI, { IPokemon } from "pokeapi-typescript";
 import { z } from "zod";

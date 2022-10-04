@@ -1,16 +1,8 @@
 import { Pokemon, Prisma, PrismaClient } from "@prisma/client";
-import express from "express";
 import PokeAPI, { IPokemon } from "pokeapi-typescript";
 import { z } from "zod";
-import {
-  validateRequestBody,
-  validateRequestParams,
-  validateRequestQuery,
-} from "zod-express-middleware";
 
 const prisma = new PrismaClient();
-
-const router = express.Router({ mergeParams: true });
 
 function normalizePokemon(pokemon: IPokemon) {
   return {
@@ -27,11 +19,27 @@ function normalizePokemon(pokemon: IPokemon) {
       pokemon.stats.map((stat) => [stat.stat.name, stat.base_stat])
     ),
     //sprites: pokemon.sprites,
-  };
+  } as unknown as PokemonDetail;
 }
 
-type PokemonDetail = Omit<ReturnType<typeof normalizePokemon>, "id"> & {
+export type PokemonDetail = {
   id: number | string;
+  name: string;
+  types: string[];
+  image: string;
+  weight: number;
+  height: number;
+  base_experience: number;
+  forms: string[];
+  abilities: string[];
+  stats: {
+    hp: number;
+    attack: number;
+    defense: number;
+    "special-attack": number;
+    "special-defense": number;
+    speed: number;
+  };
 };
 
 function normalizePokemonFromDatabase(pokemon: Pokemon): PokemonDetail {
@@ -57,27 +65,22 @@ function normalizePokemonFromDatabase(pokemon: Pokemon): PokemonDetail {
   };
 }
 
-router.get(
-  "/",
-  validateRequestQuery(
-    z.object({
-      limit: z
-        .preprocess((value) => parseInt(value as string) || 10, z.number())
-        .optional(),
-      offset: z
-        .preprocess((value) => parseInt(value as string) || 0, z.number())
-        .optional(),
-    })
-  ),
-  async (req, res) => {
-    const namespace = req.params.namespace;
+export type QueryParams = { offset?: number; limit?: number };
+export type PokemonCreateFields = {
+  name: string;
+  type: string;
+  weight?: number;
+  height?: number;
+};
+
+export default class PokemonService {
+  public async list(
+    namespace: string,
+    { limit = 10, offset = 0 }: QueryParams
+  ) {
     const countPokemons = await prisma.pokemon.count({
       where: { namespace },
     });
-    const { limit = 10, offset = 0 } = req.query as {
-      limit?: number;
-      offset?: number;
-    };
 
     const newLimit = offset < countPokemons ? limit - countPokemons : limit;
     const newOffset = Math.max(offset - countPokemons, 0);
@@ -102,92 +105,52 @@ router.get(
     const pokemonsNormalized = pokemonsDb.map(normalizePokemonFromDatabase);
     const fetchedPokemons = pokemons.map(normalizePokemon);
 
-    res.json({
+    return {
       count: list.count + countPokemons,
       next: list.next,
       previous: list.previous,
       results: [...pokemonsNormalized, ...(newLimit ? fetchedPokemons : [])],
-    });
+    };
   }
-);
 
-router.get(
-  "/:name",
-  validateRequestParams(
-    z.object({
-      name: z.string(),
-      namespace: z.string(),
-    })
-  ),
-  async (req, res) => {
-    const namespace = req.params.namespace;
+  public async getOne(namespace: string, name: string) {
     try {
-      const pokemon = await PokeAPI.Pokemon.resolve(req.params.name);
-      res.json(normalizePokemon(pokemon));
+      const pokemon = await PokeAPI.Pokemon.resolve(name);
+      return normalizePokemon(pokemon);
     } catch (error) {
       const pokemon = await prisma.pokemon.findUnique({
         where: {
           namespace_name: {
             namespace,
-            name: req.params.name,
+            name,
           },
         },
       });
-      if (!pokemon) {
-        res.status(404).send("Not found");
-      } else {
-        res.json(pokemon);
-      }
+      return pokemon ? normalizePokemonFromDatabase(pokemon) : null;
     }
   }
-);
-
-/**
- * Curl example
- *
- * curl -X POST \
- *  http://localhost:3000/test/pokemons \
- *  -H 'Content-Type: application/json' \
- *  -d '{
- *   "name": "pikachu",
- *   "type": "electric"
- *  }'
- */
-router.post(
-  "/",
-  validateRequestBody(
-    z.object({
-      name: z.string(),
-      type: z.string(),
-      weight: z.number().optional(),
-      height: z.number().optional(),
-    })
-  ),
-  async (req, res) => {
-    const namespace = req.params.namespace;
+  public async create(namespace: string, body: PokemonCreateFields) {
     try {
       const pokemon = await prisma.pokemon.create({
         data: {
           namespace,
-          name: req.body.name,
-          type: req.body.type,
-          weight: req.body.weight || 42,
-          height: req.body.height || 10,
+          name: body.name,
+          type: body.type,
+          weight: body.weight || 42,
+          height: body.height || 10,
         },
       });
 
       const normalizedPokemon: PokemonDetail =
         normalizePokemonFromDatabase(pokemon);
 
-      res.json(normalizedPokemon);
+      return normalizedPokemon;
     } catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError)) throw error;
 
       if (error.code !== "P2002") throw error;
 
-      res.status(409).send("Already exists");
+      return "Already exists";
     }
   }
-);
-
-export default router;
+}

@@ -105,10 +105,20 @@ export default class PokemonService {
     const pokemonsNormalized = pokemonsDb.map(normalizePokemonFromDatabase);
     const fetchedPokemons = pokemons.map(normalizePokemon);
 
+    const count = countPokemons + list.count;
+    const next = count > offset + limit ? offset + limit : null;
+    const previous = offset > 0 ? Math.max(offset - limit, 0) : null;
+    const previousLimit = offset > 0 ? (offset < limit ? offset : limit) : null;
     return {
-      count: list.count + countPokemons,
-      next: list.next,
-      previous: list.previous,
+      count,
+      next:
+        next !== null
+          ? `https://pokeapi.fly.dev/${namespace}/pokemons?limit=${limit}&offset=${next}`
+          : null,
+      previous:
+        previous !== null
+          ? `https://pokeapi.fly.dev/${namespace}/pokemons?limit=${previousLimit}&offset=${previous}`
+          : null,
       results: [...pokemonsNormalized, ...(newLimit ? fetchedPokemons : [])],
     };
   }

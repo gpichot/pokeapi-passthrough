@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import cors from "cors";
 import express, {
   json,
   Request as ExRequest,
@@ -10,6 +11,12 @@ import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "../build/routes";
 
 export const app = express();
+
+app.use(
+  cors({
+    origin: "*",
+  })
+);
 
 const prisma = new PrismaClient();
 // Use body parser to read sent json payloads

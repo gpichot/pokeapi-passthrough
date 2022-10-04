@@ -12,7 +12,6 @@ app.use(express.json());
 app.get("/ping", (req, res) => {
   res.send("pong");
 });
-app.use("/:namespace/pokemons", pokemonsRouter);
 
 app.get("/admin/pokemons", async (req, res) => {
   const pokemons = await prisma.pokemon.findMany({
@@ -21,6 +20,8 @@ app.get("/admin/pokemons", async (req, res) => {
 
   res.json(pokemons);
 });
+
+app.use("/:namespace/pokemons", pokemonsRouter);
 
 app.listen(3000);
 

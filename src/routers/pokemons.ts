@@ -85,7 +85,7 @@ router.get(
     const list = await PokeAPI.Pokemon.list(newLimit || 1, newOffset);
     const pokemons = await Promise.all(
       list.results.map(async (pokemon) => {
-        return PokeAPI.Pokemon.fetch(pokemon.name);
+        return PokeAPI.Pokemon.resolve(pokemon.name);
       })
     );
 
@@ -122,7 +122,7 @@ router.get(
   async (req, res) => {
     const namespace = req.params.namespace;
     try {
-      const pokemon = await PokeAPI.Pokemon.fetch(req.params.name);
+      const pokemon = await PokeAPI.Pokemon.resolve(req.params.name);
       res.json(normalizePokemon(pokemon));
     } catch (error) {
       const pokemon = await prisma.pokemon.findUnique({

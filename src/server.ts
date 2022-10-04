@@ -1,7 +1,8 @@
 import { app } from "./app";
 
-const port = process.env.PORT || 3000;
+const port = Number(process.env.PORT) || 3000;
+const hostname = process.env.HOSTNAME || "0.0.0.0";
 
-app.listen(port, () =>
-  console.log(`Example app listening at http://localhost:${port}`)
-);
+app.listen(port, hostname, () => {
+  console.log(`Listening on http://${hostname}:${port}`);
+});

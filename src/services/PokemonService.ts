@@ -150,6 +150,10 @@ export default class PokemonService {
       next: hasNextPage
         ? `https://pokeapi.fly.dev/${namespace}/pokemons?limit=${limit}&offset=${nextOffset}&searchText=${searchText}`
         : null,
+      nextLimit: hasNextPage ? limit : null,
+      nextOffset: hasNextPage ? nextOffset : null,
+      previousLimit: previousLimit,
+      previousOffset: previous,
       previous:
         previous !== null
           ? `https://pokeapi.fly.dev/${namespace}/pokemons?limit=${previousLimit}&offset=${previous}&searchText=${searchText}`

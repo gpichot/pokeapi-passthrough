@@ -21,12 +21,13 @@ export class PokemonController extends Controller {
   public async getPokemons(
     @Path() namespace: string,
     @Query() limit?: number,
-    @Query() offset?: number
+    @Query() offset?: number,
+    @Query() searchText?: string
   ): Promise<{
     count: number;
     results: PokemonDetail[];
   }> {
-    return new PokemonService().list(namespace, { limit, offset });
+    return new PokemonService().list(namespace, { limit, offset, searchText });
   }
 
   @Get("{name}")

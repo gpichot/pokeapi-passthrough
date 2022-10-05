@@ -1,4 +1,6 @@
 import { Pokemon, Prisma, PrismaClient } from "@prisma/client";
+import fs from "fs/promises";
+import path from "path";
 import PokeAPI, { IPokemon } from "pokeapi-typescript";
 import { z } from "zod";
 
@@ -65,7 +67,11 @@ function normalizePokemonFromDatabase(pokemon: Pokemon): PokemonDetail {
   };
 }
 
-export type QueryParams = { offset?: number; limit?: number };
+export type QueryParams = {
+  offset?: number;
+  limit?: number;
+  searchText?: string;
+};
 export type PokemonCreateFields = {
   name: string;
   type: string;
@@ -73,53 +79,82 @@ export type PokemonCreateFields = {
   height?: number;
 };
 
+const cache = {
+  pokemons: [] as PokemonDetail[],
+};
+
+/**
+ * Use cached pokemon on file or use API
+ */
+async function cachePokemonOnFile(name: string) {
+  const filename = path.join(process.cwd(), `./cache/${name}.json`);
+  // Create cache dir if not exists
+  await fs.mkdir(path.dirname(filename), { recursive: true });
+
+  if (await fs.stat(filename).catch(() => false)) {
+    return JSON.parse(await fs.readFile(filename, "utf-8")) as PokemonDetail;
+  }
+
+  const pokemon = await PokeAPI.Pokemon.resolve(name);
+  const normalizedPokemon = normalizePokemon(pokemon);
+
+  await fs.writeFile(filename, JSON.stringify(normalizedPokemon));
+
+  return normalizedPokemon;
+}
+
+async function fetchAllPokemons() {
+  if (!cache.pokemons.length) {
+    const allPokemons = await PokeAPI.Pokemon.list(2000, 0);
+    const pokemons = await Promise.all(
+      allPokemons.results.map((pokemon) => cachePokemonOnFile(pokemon.name))
+    );
+
+    cache.pokemons = pokemons;
+  }
+
+  return cache.pokemons;
+}
+
+async function fetchPokemonsFromDb(namespace: string) {
+  const pokemons = await prisma.pokemon.findMany({
+    where: { namespace },
+    orderBy: { id: "desc" },
+  });
+
+  return pokemons.map(normalizePokemonFromDatabase);
+}
+
 export default class PokemonService {
   public async list(
     namespace: string,
-    { limit = 10, offset = 0 }: QueryParams
+    { limit = 10, offset = 0, searchText = "" }: QueryParams
   ) {
-    const countPokemons = await prisma.pokemon.count({
-      where: { namespace },
-    });
+    const pokemonsApi = await fetchAllPokemons();
+    const pokemonsDB = await fetchPokemonsFromDb(namespace);
 
-    const newLimit = offset < countPokemons ? limit - countPokemons : limit;
-    const newOffset = Math.max(offset - countPokemons, 0);
+    const pokemons = [...pokemonsDB, ...pokemonsApi];
+    const filteredPokemons = searchText
+      ? pokemons.filter(({ name }) => name.includes(searchText))
+      : pokemons;
 
-    const list = await PokeAPI.Pokemon.list(newLimit || 1, newOffset);
-    const pokemons = await Promise.all(
-      list.results.map(async (pokemon) => {
-        return PokeAPI.Pokemon.resolve(pokemon.name);
-      })
-    );
+    const slice = filteredPokemons.slice(offset, offset + limit);
 
-    const pokemonsDb =
-      countPokemons > 0
-        ? await prisma.pokemon.findMany({
-            where: { namespace },
-            take: Number(limit),
-            skip: Number(offset),
-            orderBy: { id: "desc" },
-          })
-        : [];
+    const nextOffset = offset + limit;
+    const hasNextPage = nextOffset < filteredPokemons.length;
 
-    const pokemonsNormalized = pokemonsDb.map(normalizePokemonFromDatabase);
-    const fetchedPokemons = pokemons.map(normalizePokemon);
-
-    const count = countPokemons + list.count;
-    const next = count > offset + limit ? offset + limit : null;
     const previous = offset > 0 ? Math.max(offset - limit, 0) : null;
     const previousLimit = offset > 0 ? (offset < limit ? offset : limit) : null;
     return {
-      count,
-      next:
-        next !== null
-          ? `https://pokeapi.fly.dev/${namespace}/pokemons?limit=${limit}&offset=${next}`
-          : null,
+      count: filteredPokemons.length,
+      next: hasNextPage
+        ? `https://pokeapi.fly.dev/${namespace}/pokemons?limit=${limit}&offset=${nextOffset}&searchText=${searchText}`
+        : null,
       previous:
         previous !== null
-          ? `https://pokeapi.fly.dev/${namespace}/pokemons?limit=${previousLimit}&offset=${previous}`
+          ? `https://pokeapi.fly.dev/${namespace}/pokemons?limit=${previousLimit}&offset=${previous}&searchText=${searchText}`
           : null,
-      results: [...pokemonsNormalized, ...(newLimit ? fetchedPokemons : [])],
+      results: slice,
     };
   }
 

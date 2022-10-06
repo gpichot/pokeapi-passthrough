@@ -75,8 +75,8 @@ export type QueryParams = {
 export type PokemonCreateFields = {
   name: string;
   type: string;
-  weight?: number;
-  height?: number;
+  weight?: number | null | undefined;
+  height?: number | null | undefined;
 };
 
 const cache = {

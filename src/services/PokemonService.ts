@@ -167,12 +167,12 @@ export default class PokemonService {
       const pokemon = await PokeAPI.Pokemon.resolve(name);
       return normalizePokemon(pokemon);
     } catch (error) {
-      const pokemon = await prisma.pokemon.findUnique({
+      const pokemon = await prisma.pokemon.findFirst({
         where: {
-          namespace_name: {
-            namespace,
-            name,
-          },
+          OR: [
+            { namespace, name },
+            { namespace, id: name },
+          ],
         },
       });
       return pokemon ? normalizePokemonFromDatabase(pokemon) : null;
